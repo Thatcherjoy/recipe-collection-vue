@@ -1,9 +1,82 @@
 <template>
-  <div class="container mt-5">
-    <SearchBar />
-    <div class="row">
-      <div class="col-md-3">
-        <h2 class="mt-4">Saved Recipes</h2>
+  <div class="main-container d-flex">
+    <!-- Fixed Search Header -->
+    <div class="fixed-search-header" :class="{ show: showSearchHeader }">
+      <div class="search-header-content">
+        <div class="search-input-container">
+          <i class="fas fa-search search-icon"></i>
+          <input
+            type="text"
+            placeholder="Search recipes..."
+            v-model="searchQuery"
+            @input="handleSearch"
+            class="search-input"
+          />
+          <i class="fas fa-times close-icon" @click="closeSearchHeader"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="sidebar p-4">
+      <div class="logo-container">
+        <router-link to="/" class="logo-link">
+          <img
+            src="@/assets/logo.png"
+            alt="Recipe App Logo"
+            class="sidebar-logo"
+          />
+        </router-link>
+      </div>
+      <h2 class="mt-4">Saved Recipes</h2>
+      <ul class="list-group">
+        <li
+          v-for="recipe in savedRecipes"
+          :key="recipe.id"
+          class="list-group-item d-flex justify-content-between align-items-center"
+        >
+          <router-link
+            :to="{ name: 'RecipeDetail', params: { id: recipe.id } }"
+            >{{ recipe.name }}</router-link
+          >
+          <i
+            class="fas fa-trash-alt text-danger"
+            @click="toggleSave(recipe)"
+          ></i>
+        </li>
+      </ul>
+    </div>
+
+    <div class="content-container" ref="contentContainer">
+      <SearchBar
+        v-if="!showSearchHeader"
+        v-model="searchQuery"
+        @search="handleSearch"
+      />
+
+      <!-- Floating search icon -->
+      <div
+        class="floating-search"
+        :class="{ show: showFloatingSearch }"
+        @click="showSearchBar"
+      >
+        <div class="search-icon-container">
+          <i class="fas fa-search"></i>
+        </div>
+      </div>
+
+      <!-- Saved recipes(Mobile) -->
+      <div class="saved-recipes-mobile">
+        <div class="logo-container">
+          <router-link to="/" class="logo-link">
+            <img
+              src="@/assets/logo.png"
+              alt="Recipe App Logo"
+              class="sidebar-logo"
+            />
+          </router-link>
+        </div>
+        <h2>Saved Recipes</h2>
         <ul class="list-group">
           <li
             v-for="recipe in savedRecipes"
@@ -21,47 +94,32 @@
           </li>
         </ul>
       </div>
-      <div class="col-md-9">
-        <div class="d-flex justify-content-between align-items-center mt-4">
-          <div class="flex-grow-1">
-            <h2>Public Recipes</h2>
-          </div>
-          <router-link to="/add-recipe" class="btn btn-success"
-            >Add Recipe</router-link
-          >
+
+      <!-- Public Recipes-->
+      <div class="d-flex justify-content-between align-items-center mt-4">
+        <div class="flex-grow-1">
+          <h2>Public Recipes</h2>
         </div>
-        <div class="row">
-          <RecipeCard
-            v-for="recipe in paginatedPublicRecipes"
-            :key="recipe.id"
-            :recipe="recipe"
-            class="col-md-4 mb-3"
-          />
-        </div>
-        <div class="d-flex justify-content-between align-items-center mt-4">
-          <button
-            @click="prevPage"
-            :disabled="!hasPrevPage"
-            class="btn btn-primary"
-          >
-            &lt;
-          </button>
-          <span>Page {{ currentPage }} of {{ totalPages }}</span>
-          <button
-            @click="nextPage"
-            :disabled="!hasNextPage"
-            class="btn btn-primary"
-          >
-            &gt;
-          </button>
-        </div>
+        <router-link to="/add-recipe" class="btn btn-success">
+          Add Recipe
+        </router-link>
+      </div>
+
+      <!-- Recipe cards -->
+      <div class="recipe-grid">
+        <RecipeCard
+          v-for="recipe in allPublicRecipes"
+          :key="recipe.id"
+          :recipe="recipe"
+          class="recipe-card col-md-4 mb-3"
+        />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed, onMounted, ref, onUnmounted, watch } from "vue";
 import SearchBar from "@/components/SearchBar.vue";
 import RecipeCard from "@/components/RecipeCard.vue";
 import { useRecipeStore } from "@/store/recipeStore";
@@ -76,29 +134,74 @@ interface Recipe {
 }
 
 const store = useRecipeStore();
+const contentContainer = ref<HTMLElement | null>(null);
+const showFloatingSearch = ref(false);
+const showSearchHeader = ref(false);
+const searchQuery = ref("");
+
+// Calculate the height of two rows of cards for schroll threshold
+const calculateScrollThreshold = () => {
+  const cardHeight = 300;
+  const gap = 10;
+  return (cardHeight + gap) * 2;
+};
+
+// Handle scroll event
+const handleScroll = () => {
+  if (!contentContainer.value) return;
+
+  const scrollTop = contentContainer.value.scrollTop;
+  const threshold = calculateScrollThreshold();
+
+  showFloatingSearch.value = scrollTop > threshold && !showSearchHeader.value;
+};
+
+// Show search header when floating icon is clicked
+const showSearchBar = () => {
+  showSearchHeader.value = true;
+  showFloatingSearch.value = false;
+  setTimeout(() => {
+    const searchInput = document.querySelector(
+      ".search-input"
+    ) as HTMLInputElement;
+    if (searchInput) {
+      searchInput.focus();
+    }
+  }, 100);
+};
+
+const closeSearchHeader = () => {
+  showSearchHeader.value = false;
+};
+
+const handleSearch = () => {
+  store.filterRecipes(searchQuery.value);
+};
+
+// Watch for search query changes with debouncing
+let debounceTimeout: NodeJS.Timeout;
+watch(searchQuery, (newQuery) => {
+  clearTimeout(debounceTimeout);
+  debounceTimeout = setTimeout(() => {
+    handleSearch();
+  }, 300);
+});
 
 onMounted(() => {
   store.fetchRecipes().then(() => {
     console.log("Recipes in store:", store.recipes);
   });
+
+  contentContainer.value?.addEventListener("scroll", handleScroll);
 });
 
-const paginatedPublicRecipes = computed(() => store.paginatedRecipes);
+onUnmounted(() => {
+  contentContainer.value?.removeEventListener("scroll", handleScroll);
+  clearTimeout(debounceTimeout);
+});
+
+const allPublicRecipes = computed(() => store.filteredRecipes);
 const savedRecipes = computed(() => store.savedRecipes);
-
-const currentPage = computed(() => store.currentPage);
-const totalPages = computed(() => store.totalPages);
-
-const prevPage = () => {
-  store.prevPage();
-};
-
-const nextPage = () => {
-  store.nextPage();
-};
-
-const hasPrevPage = computed(() => currentPage.value > 1);
-const hasNextPage = computed(() => currentPage.value < totalPages.value);
 
 const toggleSave = (recipe: Recipe) => {
   if (store.savedRecipes.some((r) => r.id === recipe.id)) {
@@ -110,45 +213,270 @@ const toggleSave = (recipe: Recipe) => {
 </script>
 
 <style scoped>
-.img-fluid {
-  max-width: 100%;
-  height: auto;
+.main-container {
+  display: flex;
+  min-width: 100%;
+  min-height: 100vh;
+  background-color: #f9f9f9;
 }
 
-.container {
-  max-width: 1200px;
+.fixed-search-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background-color: white;
+  padding: 1rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  transform: translateY(-100%);
+  transition: transform 0.3s ease;
+  z-index: 1001;
+}
+
+.fixed-search-header.show {
+  transform: translateY(0);
+}
+
+.search-header-content {
+  max-width: 800px;
   margin: 0 auto;
+  padding: 0 1rem;
 }
 
-.list-unstyled {
-  padding: 0;
-  list-style: none;
+.search-input-container {
+  display: flex;
+  align-items: center;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 0;
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  background: none;
+  padding: 0 1rem;
+  font-size: 1.1rem;
+  outline: none;
+}
+
+.search-icon {
+  color: #666;
+  font-size: 1.1rem;
+}
+
+.close-icon {
+  color: #666;
+  cursor: pointer;
+  padding: 0.5rem;
+  font-size: 1.1rem;
+  transition: color 0.2s ease;
+}
+
+.close-icon:hover {
+  color: #333;
+}
+
+/* Logo */
+.logo-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1.5rem 0;
+  border-bottom: 1px solid #eaeaea;
+  margin-bottom: 1rem;
+}
+
+.logo-link {
+  display: block;
+  text-decoration: none;
+}
+
+.sidebar-logo {
+  max-width: 150px;
+  height: auto;
+  display: block;
+}
+
+/* Sidebar */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 250px;
+  height: 100vh;
+  background-color: #ffffff;
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+  border-right: 1px solid #ddd;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+.sidebar h2 {
+  font-size: 1.5rem;
+  color: #333;
+  margin-bottom: 1rem;
 }
 
 .list-group-item {
-  cursor: pointer;
-  transition: background-color 0.3s;
+  transition: transform 0.2s ease;
 }
 
 .list-group-item:hover {
-  background-color: #f8f9fa;
-}
-
-.mt-4 {
-  margin-top: 1.5rem !important;
+  background-color: #eef1f4;
 }
 
 .fa-trash-alt {
   cursor: pointer;
 }
 
-.btn-primary {
-  background-color: #483e3e !important;
-  border-color: #483e3e !important;
+/* Main Content */
+.content-container {
+  flex-grow: 1;
+  padding: 2rem 25vh 0 25vh;
+  margin-left: 250px;
+  height: 100vh;
+  overflow-y: auto;
 }
 
-.btn-primary:hover {
-  background-color: #707772 !important;
-  border-color: #707772 !important;
+.content-container h2 {
+  font-size: 2rem;
+  font-weight: 600;
+}
+
+.btn-primary,
+.btn-success {
+  box-shadow: 0px 3px 6px rgba(0, 0, 0, 0.2);
+}
+
+.pagination-text {
+  padding: 0.5rem;
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #333;
+}
+
+/* Recipe Grid */
+.recipe-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+.recipe-card {
+  flex: 1 1 calc(25% - 10px);
+  max-width: 300px;
+  display: block;
+}
+
+/* Floating Search */
+.floating-search {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(20px);
+  transition: all 0.3s ease;
+  z-index: 1000;
+  cursor: pointer;
+}
+
+.floating-search.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.search-icon-container {
+  width: 50px;
+  height: 50px;
+  background-color: #007bff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+}
+
+.search-icon-container:hover {
+  transform: scale(1.1);
+  background-color: #0056b3;
+}
+
+.search-icon-container i {
+  color: white;
+  font-size: 1.5rem;
+}
+
+.saved-recipes-mobile {
+  display: none;
+  margin-bottom: 1rem;
+}
+
+/* Medium View (ipad or table) */
+@media (max-width: 1200px) {
+  .recipe-card {
+    flex: 1 1 calc(50% - 10px);
+  }
+
+  .content-container {
+    padding: 2rem;
+  }
+}
+
+/* Mobile View */
+@media (max-width: 760px) {
+  .sidebar {
+    display: none;
+  }
+
+  .saved-recipes-mobile {
+    display: block;
+  }
+
+  .content-container {
+    margin-left: 0;
+    padding: 1rem;
+  }
+
+  .recipe-grid {
+    flex-direction: column;
+  }
+
+  .recipe-card {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  .floating-search {
+    bottom: 1rem;
+    right: 1rem;
+  }
+
+  .search-icon-container {
+    width: 45px;
+    height: 45px;
+  }
+
+  .fixed-search-header {
+    padding: 0.5rem;
+  }
+
+  .search-header-content {
+    padding: 0 0.5rem;
+  }
+
+  .search-input-container {
+    padding: 0.5rem;
+  }
+
+  .saved-recipes-mobile .logo-container {
+    margin-bottom: 1.5rem;
+  }
 }
 </style>

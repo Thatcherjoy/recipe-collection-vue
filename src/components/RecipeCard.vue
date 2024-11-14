@@ -1,30 +1,20 @@
 <template>
-  <div class="card position-relative">
-    <img
-      v-if="recipe.image && recipe.image.length > 0"
-      :src="recipe.image[0]"
-      class="card-img-top fixed-size-image"
-      alt="recipe image"
-      @click="openRecipeDetail"
-    />
-    <div v-else class="card-img-top placeholder" @click="openRecipeDetail">
-      No Image Available
+  <div class="recipe-card">
+    <div class="card-image" @click="openRecipeDetail">
+      <img
+        v-if="recipe.image && recipe.image.length > 0"
+        :src="recipe.image[0]"
+        alt="recipe image"
+      />
+      <div v-else class="placeholder">No Image Available</div>
     </div>
-    <div class="card-body">
-      <h5 class="card-title">{{ recipe.name }}</h5>
-      <p class="card-text">By: {{ cleanedAuthorName }}</p>
+    <div class="card-details">
+      <h5 class="recipe-title">{{ recipe.name }}</h5>
+      <p class="recipe-author">By: {{ cleanedAuthorName }}</p>
     </div>
     <i
       @click="toggleSave"
-      :class="[
-        'fa-heart',
-        isSaved ? 'fas' : 'far',
-        'position-absolute',
-        'bottom-0',
-        'end-0',
-        'm-2',
-        'text-danger',
-      ]"
+      :class="['fa-heart', isSaved ? 'fas' : 'far', 'save-icon']"
     ></i>
   </div>
 </template>
@@ -67,15 +57,29 @@ const openRecipeDetail = () => {
 </script>
 
 <style scoped>
-.fixed-size-image {
+.recipe-card {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+  background-color: #fff;
+  transition: transform 0.2s;
+}
+
+.recipe-card:hover {
+  transform: scale(1.02);
+}
+
+.card-image img {
+  cursor: pointer;
   width: 100%;
-  height: 200px;
+  height: 180px;
   object-fit: cover;
 }
 
 .placeholder {
   width: 100%;
-  height: 200px;
+  height: 180px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -83,27 +87,27 @@ const openRecipeDetail = () => {
   color: #888;
 }
 
-.fa-heart {
+.card-details {
+  padding: 0.5rem;
+}
+
+.recipe-title {
+  font-size: 1rem;
+  font-weight: bold;
+  margin: 0;
+}
+
+.recipe-author {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.save-icon {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 1.2rem;
+  color: #dc3545;
   cursor: pointer;
-}
-
-.position-absolute {
-  position: absolute !important;
-}
-
-.bottom-0 {
-  bottom: 0 !important;
-}
-
-.end-0 {
-  right: 0 !important;
-}
-
-.m-2 {
-  margin: 0.5rem !important;
-}
-
-.text-danger {
-  color: #dc3545 !important;
 }
 </style>

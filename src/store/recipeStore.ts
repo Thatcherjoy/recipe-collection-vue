@@ -26,13 +26,15 @@ export const useRecipeStore = defineStore("recipeStore", {
         const response = await axios.get(
           "https://raw.githubusercontent.com/micahcochran/json-cookbook/refs/heads/main/cookbook-100.json"
         );
-        console.log("API Response:", response.data); // Log the full API response
+        console.log("API Response:", response.data); // Log full API response
         this.recipes =
           response.data.map((recipe: any, index: number) => ({
             id: index + 1,
             name: recipe.name,
             author: recipe.author,
-            image: recipe.image,
+            image: recipe.image && recipe.image[0]?.length >= 5 
+              ? recipe.image 
+              : ["https://via.placeholder.com/300x200?text=Image+Not+Available"],
             ingredients: recipe.recipeIngredient || [],
             instructions: Array.isArray(recipe.recipeInstructions)
               ? recipe.recipeInstructions
@@ -97,11 +99,10 @@ export const useRecipeStore = defineStore("recipeStore", {
   },
   getters: {
     paginatedRecipes: (state) => {
-      const start = (state.currentPage - 1) * state.itemsPerPage;
-      return state.filteredRecipes.slice(start, start + state.itemsPerPage);
+      return state.filteredRecipes;
     },
     totalPages: (state) => {
-      return Math.ceil(state.filteredRecipes.length / state.itemsPerPage);
+      return 1;
     },
   },
 });
