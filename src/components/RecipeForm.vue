@@ -1,14 +1,14 @@
 <template>
   <div class="container mt-5">
     <button @click="goBack" class="btn btn-secondary back-button">Back</button>
-    <h2>Add a New Recipe</h2>
-    <form @submit.prevent="addRecipe">
+    <h2 class="text-center mb-4">Add a New Recipe</h2>
+    <form @submit.prevent="addRecipe" class="form-container">
       <div class="mb-3">
         <label for="name" class="form-label">Recipe Name</label>
         <input
           v-model="name"
           id="name"
-          class="form-control"
+          class="form-control form-control-lg"
           placeholder="Recipe Name"
           required
         />
@@ -18,11 +18,68 @@
         <input
           v-model="author"
           id="author"
-          class="form-control"
+          class="form-control form-control-lg"
           placeholder="Author"
           required
         />
       </div>
+      <div class="mb-3">
+        <label for="description" class="form-label">Description</label>
+        <textarea
+          v-model="description"
+          id="description"
+          class="form-control form-control-lg"
+          placeholder="Write a brief description"
+          required
+        ></textarea>
+      </div>
+
+      <!-- Image Upload Section -->
+      <div class="mb-3">
+        <label for="image" class="form-label">Recipe Image</label>
+        <div class="image-upload-container">
+          <input
+            type="file"
+            id="image"
+            ref="imageInput"
+            @change="handleImageUpload"
+            accept="image/*"
+            class="hidden-input"
+            required
+          />
+          <div
+            class="image-upload-area"
+            @click="triggerImageUpload"
+            @dragover.prevent
+            @drop.prevent="handleImageDrop"
+          >
+            <template v-if="imagePreview">
+              <img
+                :src="imagePreview"
+                alt="Recipe preview"
+                class="image-preview"
+              />
+              <button
+                type="button"
+                class="remove-image-btn"
+                @click.stop="removeImage"
+              >
+                ×
+              </button>
+            </template>
+            <template v-else>
+              <div class="upload-placeholder">
+                <i class="upload-icon">📸</i>
+                <span>Click or drag image here</span>
+              </div>
+            </template>
+          </div>
+          <div v-if="imageError" class="error-message">
+            {{ imageError }}
+          </div>
+        </div>
+      </div>
+
       <div class="mb-3">
         <label for="ingredients" class="form-label"
           >Ingredients (comma separated)</label
@@ -30,22 +87,26 @@
         <textarea
           v-model="ingredientsString"
           id="ingredients"
-          class="form-control"
-          placeholder="Ingredients"
+          class="form-control form-control-lg"
+          placeholder="List the ingredients, separated by commas"
           required
         ></textarea>
       </div>
       <div class="mb-3">
-        <label for="instructions" class="form-label">Instructions</label>
+        <label for="instructions" class="form-label"
+          >Instructions (new line separated)</label
+        >
         <textarea
           v-model="instructions"
           id="instructions"
-          class="form-control"
-          placeholder="Instructions"
+          class="form-control form-control-lg"
+          placeholder="Provide the cooking instructions, seperated by line breaks"
           required
         ></textarea>
       </div>
-      <button type="submit" class="btn btn-primary">Add Recipe</button>
+      <button type="submit" class="btn btn-primary btn-block">
+        Add Recipe
+      </button>
     </form>
   </div>
 </template>
@@ -60,49 +121,158 @@ const router = useRouter();
 
 const name = ref("");
 const author = ref("");
+const description = ref("");
 const ingredientsString = ref("");
 const instructions = ref("");
+const imageFile = ref<File | null>(null);
+const imagePreview = ref<string>("");
+const imageError = ref("");
+const imageInput = ref<HTMLInputElement | null>(null);
 
 const goBack = () => {
   router.go(-1);
 };
 
-const addRecipe = () => {
+const handleImageUpload = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  processImage(file);
+};
+
+const handleImageDrop = (event: DragEvent) => {
+  const file = event.dataTransfer?.files[0];
+  processImage(file);
+};
+
+const processImage = (file: File | undefined) => {
+  if (!file) return;
+
+  // Validate image type
+  if (!file.type.startsWith("image/")) {
+    imageError.value = "Please upload an image file";
+    return;
+  }
+
+  // 5mb upload size limit
+  if (file.size > 5 * 1024 * 1024) {
+    imageError.value = "Image size should be less than 5MB";
+    return;
+  }
+
+  imageError.value = "";
+  imageFile.value = file;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    imagePreview.value = e.target?.result as string;
+  };
+  reader.readAsDataURL(file);
+};
+
+const removeImage = () => {
+  imageFile.value = null;
+  imagePreview.value = "";
+  if (imageInput.value) {
+    imageInput.value.value = "";
+  }
+};
+
+const triggerImageUpload = () => {
+  imageInput.value?.click();
+};
+
+const addRecipe = async () => {
   if (
     name.value &&
     author.value &&
+    description.value &&
     ingredientsString.value &&
-    instructions.value
+    instructions.value &&
+    imageFile.value
   ) {
     const ingredientsArray = ingredientsString.value
       .split(",")
-      .map((ingredient) => ingredient.trim());
+      .map((ingredient) => ingredient.trim())
+      .filter((ingredient) => ingredient.length > 0);
+
     const newRecipe = {
       id: Date.now(),
       name: name.value,
-      author: author.value,
-      image: [],
+      author: { name: author.value },
+      description: description.value,
+      image: [imagePreview.value],
+      recipeIngredient: ingredientsArray,
       ingredients: ingredientsArray,
+      recipeInstructions: instructions.value,
       instructions: instructions.value,
     };
+
     store.saveRecipe(newRecipe);
 
     name.value = "";
     author.value = "";
+    description.value = "";
     ingredientsString.value = "";
     instructions.value = "";
+    imageFile.value = null;
+    imagePreview.value = "";
 
     router.push("/");
   } else {
-    alert("Please fill in all fields");
+    alert("Please fill in all fields including the image");
   }
 };
 </script>
 
 <style scoped>
 .container {
-  max-width: 1200px;
+  max-width: 800px;
   margin: 0 auto;
+  padding: 20px;
+  background-color: #e5b08b;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+h2 {
+  color: #343a40;
+  font-family: "Georgia", serif;
+}
+
+.form-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-label {
+  font-weight: bold;
+  color: #495057;
+}
+
+.form-control-lg {
+  border: 2px solid #dee2e6;
+  border-radius: 5px;
+  font-size: 1.25rem;
+  padding: 10px;
+  margin-bottom: 15px;
+}
+
+.form-control-lg::placeholder {
+  color: #adb5bd;
+}
+
+.btn-primary {
+  background-color: #647485;
+  border: none;
+  padding: 15px;
+  font-size: 1.25rem;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.btn-primary:hover {
+  background-color: #0056b3;
 }
 
 .back-button {
@@ -112,7 +282,91 @@ const addRecipe = () => {
   z-index: 1000;
 }
 
-.btn-secondary {
-  margin-bottom: 20px;
+.hidden-input {
+  display: none;
+}
+
+.image-upload-container {
+  width: 100%;
+  margin-bottom: 15px;
+}
+
+.image-upload-area {
+  width: 100%;
+  height: 200px;
+  border: 2px dashed #dee2e6;
+  border-radius: 5px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  position: relative;
+  background-color: #fff;
+  transition: border-color 0.3s ease;
+}
+
+.image-upload-area:hover {
+  border-color: #647485;
+}
+
+.upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #6c757d;
+}
+
+.upload-icon {
+  font-size: 2rem;
+  margin-bottom: 10px;
+}
+
+.image-preview {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.remove-image-btn {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background-color: rgba(255, 255, 255, 0.8);
+  border: none;
+  border-radius: 50%;
+  width: 25px;
+  height: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.2rem;
+  color: #dc3545;
+}
+
+.error-message {
+  color: #dc3545;
+  font-size: 0.875rem;
+  margin-top: 5px;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 10px;
+  }
+
+  .form-control-lg {
+    font-size: 1rem;
+    padding: 8px;
+  }
+
+  .btn-primary {
+    padding: 10px;
+    font-size: 1rem;
+  }
+
+  .image-upload-area {
+    height: 150px;
+  }
 }
 </style>
